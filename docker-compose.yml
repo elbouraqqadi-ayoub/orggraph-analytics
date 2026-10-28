@@ -1,0 +1,83 @@
+name: organization-kg
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Copier .env.example vers .env et définir NEO4J_PASSWORD}
+      LOCAL_KG_PASSWORD: ${NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$$LOCAL_KG_PASSWORD\" 'RETURN 1' > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+  api:
+    build: .
+    env_file: .env
+    environment:
+      API_BIND: 0.0.0.0
+      NEO4J_HTTP_URL: http://neo4j:7474
+      HDFS_URL: http://namenode:9870
+    command: ["--backend", "neo4j", "serve"]
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+  namenode:
+    image: apache/hadoop:3.4.1
+    profiles: ["bigdata"]
+    hostname: namenode
+    user: root
+    entrypoint: ["/bin/bash", "/opt/project/start-hdfs.sh", "namenode"]
+    environment:
+      HADOOP_CONF_DIR: /opt/project/conf
+      HADOOP_HEAPSIZE_MAX: "256"
+    volumes:
+      - ./docker/hadoop:/opt/project:ro
+      - namenode_data:/hadoop/dfs/name
+    ports:
+      - "127.0.0.1:9870:9870"
+  datanode:
+    image: apache/hadoop:3.4.1
+    profiles: ["bigdata"]
+    hostname: datanode
+    user: root
+    entrypoint: ["/bin/bash", "/opt/project/start-hdfs.sh", "datanode"]
+    environment:
+      HADOOP_CONF_DIR: /opt/project/conf
+      HADOOP_HEAPSIZE_MAX: "256"
+    volumes:
+      - ./docker/hadoop:/opt/project:ro
+      - datanode_data:/hadoop/dfs/data
+    depends_on: [namenode]
+  spark:
+    image: apache/spark:3.5.9-scala2.12-java17-python3-r-ubuntu
+    profiles: ["bigdata"]
+    user: root
+    entrypoint: ["/opt/spark/bin/spark-submit"]
+    command: ["--master", "local[2]", "--driver-memory", "512m", "/app/spark_jobs/transform.py", "hdfs://namenode:9000/orgkg/processed/extractions.jsonl", "hdfs://namenode:9000/orgkg/curated"]
+    environment:
+      HADOOP_CONF_DIR: /opt/hadoop-conf
+      PYTHONPATH: /app
+    volumes:
+      - ./spark_jobs:/app/spark_jobs:ro
+      - ./orgkg:/app/orgkg:ro
+      - ./docker/hadoop/conf:/opt/hadoop-conf:ro
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    depends_on: [namenode, datanode]
+volumes:
+  neo4j_data:
+  namenode_data:
+  datanode_data:

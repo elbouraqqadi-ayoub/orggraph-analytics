@@ -1,0 +1,5 @@
+CORPUS SYNTHÉTIQUE — entreprises fictives, aucun fait réel.
+Le communiqué de démonstration décrit ces faits :
+[Atlas Industries] PARTNERS_WITH [Nova Logistics].
+[Atlas Industries] LOCATED_IN [Casablanca].
+[Atlas Industries] OPERATES_IN [Industrie].

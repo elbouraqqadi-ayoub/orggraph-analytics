@@ -1,0 +1,25 @@
+[
+  {
+    "id": "Q1", "question": "Quels liens directs concernent Atlas Industries ?", "hops": 1,
+    "expected_facts": [
+      ["Atlas Industries", "PARTNERS_WITH", "Nova Logistics", "Organization"],
+      ["Atlas Industries", "LOCATED_IN", "Casablanca", "Location"],
+      ["Atlas Industries", "OPERATES_IN", "Industrie", "Sector"]
+    ]
+  },
+  {
+    "id": "Q2", "question": "Quels liens existent à deux sauts autour de Atlas Industries ?", "hops": 2,
+    "expected_facts": [
+      ["Atlas Industries", "PARTNERS_WITH", "Nova Logistics", "Organization"],
+      ["Atlas Industries", "LOCATED_IN", "Casablanca", "Location"],
+      ["Atlas Industries", "OPERATES_IN", "Industrie", "Sector"],
+      ["Nova Logistics", "SUBSIDIARY_OF", "Orion Group", "Organization"],
+      ["Nova Logistics", "LOCATED_IN", "Rabat", "Location"],
+      ["Nova Logistics", "OPERATES_IN", "Logistique", "Sector"]
+    ]
+  },
+  {
+    "id": "Q3", "question": "Quels liens concernent Inconnue SA ?", "hops": 2,
+    "expected_facts": []
+  }
+]

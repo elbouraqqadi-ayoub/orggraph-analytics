@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "organization-knowledge-graph"
+version = "0.1.0"
+description = "Knowledge graph analytics and GraphRAG for organizations"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+pdf = ["pypdf>=5,<7"]
+
+[project.scripts]
+orgkg = "orgkg.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["orgkg*"]
