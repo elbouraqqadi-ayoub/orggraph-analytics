@@ -12,3 +12,5 @@ data/curated/
 .ingestion-*/
 architecture_reference*.jpg
 *.log
+data/runs/
+.runtime/

@@ -1,208 +1,92 @@
-# Plateforme Knowledge Graph — Entreprises et organisations
+# OrgGraph Analytics
 
-Première version exécutable du projet : collecte explicite, extraction structurée,
-résolution d'alias, graphe commun, analyse et recherche avec génération LLM optionnelle.
-Le corpus fourni est **entièrement synthétique** ; ses entreprises et relations ne
-constituent pas des informations réelles.
+Explore organizations and their relationships through an interactive knowledge graph, inspect the original evidence, compare Cypher with graph retrieval, and process the same extraction records with HDFS and Spark.
 
-Configuration retenue : **démonstration sans LLM**. Les options LLM ci-dessous
-restent disponibles pour une activation ultérieure.
+The browser interface includes a graph explorer, entity directory, source document library and uploads, analytics, evaluation reports, questions and JSON export. It works without a model or paid API.
 
-## Démarrage local, sans Docker ni clé LLM
+## Start locally
 
-Prérequis : Python 3.11 ou supérieur. Exécuter depuis ce dossier :
+Requires Python 3.11+. Run from the repository folder:
 
 ```powershell
-python -X utf8 -m orgkg ingest
-python -X utf8 -m orgkg analytics
-python -X utf8 -m orgkg ask "Quels liens autour de Atlas Industries ?"
-python -X utf8 -m orgkg gui
+python -m pip install ".[pdf]"
+python scripts/init_workspace.py
+python -m orgkg serve --open-browser
 ```
 
-L'interface native présente les entités, les relations, les preuves documentaires et
-un champ de question. Elle nécessite Tkinter (généralement inclus dans Python Windows).
-Le premier traitement doit produire **4 documents, 10 entités et 9 relations**.
-Vous pouvez aussi double-cliquer sur `DEMARRER_INTERFACE.cmd` ; il prépare le
-corpus de démonstration seulement si aucun graphe local n'existe déjà.
-`Atlas Ind.` est fusionné avec `Atlas Industries` ; la relation commune conserve ses
-deux preuves. Le graphe local est dans `data/graph.json`.
+Open http://localhost:8080. On Windows, `DEMARRER_INTERFACE.cmd` also initializes missing sample data and opens the web interface. The older Tkinter interface remains available through `python -m orgkg gui`.
 
-Le mode `fixture` analyse uniquement la syntaxe contrôlée `[A] PARTNERS_WITH [B]`
-du corpus de démonstration. Il ne remplace pas l'extraction LLM sur des textes libres.
-Le mode de réponse `extractive` affiche les faits retrouvés ; il n'effectue pas de
-raisonnement en langage naturel.
+Initialization preserves an existing graph and credentials. A new workspace contains **14 entities, 11 facts and 6 documents**: four synthetic documents and two short, attributed historical corporate excerpts. Atlas Industries and its relationships are fictional. See [sources and scope](docs/DATA_SOURCES.md).
 
-L'ingestion publie le nouveau graphe uniquement si **tous les documents réussissent**.
-En cas d'échec, `data/graph.json` et l'export d'extractions précédents sont conservés ;
-le détail est écrit dans `data/processed/last_attempt.json` (`published: false`) et
-la commande retourne le code 2. Les passages d'un document partiellement traité
-ne sont pas conservés dans les résultats à publier. Les copies brutes restent
-disponibles pour diagnostiquer les erreurs. La publication locale prévoit un seul
-processus d'ingestion à la fois.
+## Docker and the complete data pipeline
 
-## Tests et évaluation locale
+Requires Docker Desktop with Linux containers and internet access for the initial image downloads. Initialize the workspace first. The generated `.env` contains a random local Neo4j password; preserve it when reusing a Neo4j data volume.
 
 ```powershell
-python -X utf8 -m unittest discover -s tests -v
-python -X utf8 -m orgkg benchmark
-# Ou : powershell -ExecutionPolicy Bypass -File scripts/demo.ps1 -Gui
+python scripts/prepare_gds.py
+ docker compose --profile bigdata up -d --build neo4j api namenode datanode
+ docker compose run --rm api load-neo4j
 ```
 
-Résultats dans `output/benchmark.json`. Les trois questions fournies vérifient la
-recherche à un saut, à deux sauts et l'absence d'information. Ce petit jeu est un
-test de fonctionnement, pas une preuve scientifique de performance GraphRAG.
-Le F1 affiché mesure **les faits récupérés**, pas la qualité d'une réponse générée.
+The Docker dashboard is at http://localhost:8081 (`API_PORT` in `.env`), Neo4j Browser at http://localhost:7474 and HDFS at http://localhost:9870. All published ports bind to this computer only. The Neo4j image includes the SHA-256 checked, version-pinned GDS plugin; it does not download plugins during startup. Spark runs on demand.
 
-## Documents réels et extraction LLM
-
-1. Copier `.env.example` vers `.env` et configurer `LLM_BASE_URL`, `LLM_MODEL` et,
-   si nécessaire, `LLM_API_KEY`. Le service doit accepter `/chat/completions`,
-   `response_format: json_object` et renvoyer `choices[0].message.content`.
-2. Déposer les documents TXT UTF-8, HTML, JSON (`{"text":"..."}`) ou PDF dans
-   `data/incoming`. Pour PDF : `python -m pip install ".[pdf]"`. OCR et Word ne
-   sont pas implémentés.
-3. Exécuter :
+Run the actual end-to-end acceptance:
 
 ```powershell
-python -X utf8 -m orgkg ingest --source data/incoming --mode llm
-python -X utf8 -m orgkg ask "Quels partenariats concernent NOM COMPLET ?" --mode llm
+python scripts/verify_pipeline.py --api-port 8081
 ```
 
-Collecte ponctuelle d'une URL explicitement choisie :
+This builds the images, ingests samples into an isolated run directory, uploads raw data and extraction records to HDFS, runs Spark, downloads and validates its exports, checks equality with the local graph, loads Neo4j, verifies the API snapshot and code fingerprint, compares retrieval with Cypher, runs GDS, and proves that invalid input cannot replace a valid curated export. The report is `output/pipeline_validation.json`. It activates its sample snapshot; restore your main workspace afterward:
 
 ```powershell
-python -X utf8 -m orgkg collect https://votre-source.example/rapport.html
+python scripts/verify_services.py
+python -m orgkg gds
 ```
 
-Remplacer cette URL d'exemple par une source autorisée. Aucun parcours récursif,
-email ou accès à une base externe n'est activé. La collecte conserve l'URL finale
-dans un fichier `.meta`. La limite est de 10 Mo par document.
+These commands use `.env`. `verify_services.py` restores `data/graph.json` into Neo4j and checks the dashboard API at `API_PORT`.
 
-Le dictionnaire `config/aliases.json` contient les fusions explicites. Sur des
-données réelles, le remplacer par un dictionnaire validé pour le domaine. Aucun
-rapprochement flou automatique n'est effectué. Une preuve textuelle présente ne
-garantit pas à elle seule la vérité d'un fait : une annotation humaine reste nécessaire.
+For the Docker Desktop socket startup error, see [the reversible recovery procedure](docs/DOCKER_TROUBLESHOOTING.md). A factory reset is unnecessary for the error encountered on this workstation.
 
-**Le mode LLM envoie les passages et/ou le contexte au fournisseur configuré.**
-Les coûts ne sont estimés que si les tarifs sont renseignés et le fournisseur renvoie
-les compteurs de tokens. Les valeurs nulles signifient « non mesuré ».
+## Local AI
 
-## Neo4j et API avec Docker
+The default question mode displays retrieved facts and their evidence. Optional generation and extraction use an OpenAI-compatible endpoint; no API key is required for local Ollama.
 
-Prérequis : Docker Desktop démarré en mode conteneurs Linux.
+On Windows:
 
 ```powershell
-# Un fichier .env local a déjà été préparé avec un mot de passe aléatoire.
-# Pour une nouvelle installation uniquement : Copy-Item .env.example .env
-# Modifier NEO4J_PASSWORD dans .env (au moins 8 caractères).
-docker compose config --quiet
-docker compose up -d --build neo4j api
-docker compose run --rm api ingest
-docker compose run --rm api load-neo4j
-docker compose run --rm api --backend neo4j analytics
-docker compose run --rm api --backend neo4j ask "Quels liens autour de Atlas Industries ?"
-docker compose run --rm api compare
-# Avec un LLM configuré : docker compose run --rm api compare --mode llm
+python scripts/start_local_ai.py
 ```
 
-Neo4j Browser : http://localhost:7474. API : http://localhost:8080.
-La comparaison écrit `output/comparison.json` : faits récupérés, précision/rappel,
-latence Cypher (aller-retour HTTP compris), récupération et génération GraphRAG.
-Les deux approches partagent l'identification lexicale des entités et le voisinage
-attendu. La recherche GraphRAG charge le snapshot en mémoire : cette mesure ne
-démontre pas une supériorité de performance sur une requête Neo4j distante.
-L'API utilise **le snapshot actif de Neo4j** ; la même fonction de recherche et
-d'analyse peut fonctionner sur l'export local avec `--backend local`.
-Le chargement crée des nœuds Entity, Fact et Document, des relations typées et
-leurs preuves. Dans le schéma v2, les labels réels sont `EntityVersion`,
-`FactVersion` et `DocumentVersion` : chaque version possède une clé propre au
-snapshot. Les propriétés et les preuves d'un ancien snapshot ne sont pas modifiées
-par un nouvel import. Les écritures utilisent des lots de 500 lignes ; le snapshot
-est activé uniquement après leur réussite. Il n'efface pas les snapshots précédents. Les requêtes doivent filtrer
-le snapshot actif ; exemples dans `graph/queries.cypher`.
+The helper downloads the official CPU runtime (about 28 MB compressed), starts it on localhost, downloads Qwen2.5:1.5b (about 986 MB), and configures `.env`. Restart the API afterward (`docker compose up -d --build api` for Docker). The first CPU response may be slow. The optional Compose `ai` profile provides an alternative Ollama server; set `DOCKER_LLM_BASE_URL=http://ollama:11434/v1` when using it, and pull the model into that server.
 
-**Mise à jour depuis la première version, lors des prochains essais Docker :**
+LLM output is validated against the entity/relation contract and verbatim evidence. Invalid extraction does not publish a partial graph. Answers without valid fact citations fall back explicitly to retrieved facts. Valid citation identifiers alone do not prove semantic accuracy: review the evidence. The installed 1.5b model failed our extraction acceptance on the two real excerpts; keep rule extraction as the default. Local AI is experimental, and a stronger model can be selected with LOCAL_AI_MODEL. A larger model download was stopped after network failures. No extraction-quality claim is made for this model.
+
+## Documents and commands
+
+Upload TXT, HTML, JSON with a `text` field, DOCX or text-based PDF through the Source documents view. PDF reading requires the optional dependency above; scanned pages require an external OCR step. The default rule extractor supports a limited set of explicit French/English patterns. Fixture mode handles only the controlled bracket syntax in the synthetic samples. Select LLM mode explicitly for broader text extraction.
 
 ```powershell
-docker compose build api
-docker compose run --rm api load-neo4j
-docker compose up -d api
-python -X utf8 scripts/verify_services.py
+python -m orgkg ingest --source data/reference --mode rules --append
+python -m orgkg analytics
+python -m orgkg ask "Which organizations partner with Atlas Industries?"
+python -m orgkg ask "What did Microsoft acquire?" --mode llm
+python -m orgkg evaluate-extraction --mode rules
+python -m orgkg evaluate-extraction --mode llm
+python -m orgkg benchmark
+python -m orgkg --backend neo4j compare
 ```
 
-Le graphe local existant reste utilisable. Les anciens snapshots Neo4j sont conservés,
-mais leur schéma doit être réimporté avant d'utiliser le nouveau lecteur. Aucune
-migration ni reconstruction d'image n'est exécutée automatiquement.
+Without `--append`, ingestion replaces the local corpus after all records validate. Alias mappings are explicit in `config/aliases.json`. Sources, content hashes, passage offsets and verbatim evidence are retained. Failed attempts preserve the last valid graph/export.
 
-Si le LLM tourne sur Windows et l'API dans Docker, utiliser
-`http://host.docker.internal:11434/v1` pour `LLM_BASE_URL`, au lieu de localhost.
-
-API locale sans Docker :
+## Validation and limits
 
 ```powershell
-python -X utf8 -m orgkg serve
-Invoke-RestMethod http://localhost:8080/health
-Invoke-RestMethod -Method Post -Uri http://localhost:8080/ask -ContentType application/json -Body '{"question":"Quels liens autour de Atlas Industries ?","mode":"extractive","hops":2}'
+python scripts/check_local.py
+python scripts/verify_llm.py
 ```
 
-Routes : `GET /`, `GET /health`, `GET /graph`, `GET /analytics`, `POST /ask`.
-L'API distingue les requêtes invalides (400), les problèmes de configuration (500)
-et les indisponibilités du backend (503). Elle conserve le graphe en cache : le
-fichier local est relu après remplacement et Neo4j est relu après changement de
-snapshot actif. L'identifiant actif est vérifié à chaque requête Neo4j.
-Si `API_TOKEN` est configuré, joindre `Authorization: Bearer VOTRE_TOKEN`.
-Les ports Docker sont publiés uniquement sur localhost. Ce serveur de développement
-n'est pas un déploiement multi-utilisateur de production. Les journaux HTTP sont
-écrits sur stderr ; les durées sont incluses dans les réponses et rapports.
+The first command runs the local regression suite without Docker. The second runs actual local inference and requires valid extraction plus exact expected relations on the tiny reference corpus. It records failures honestly. Reports are in `output/`; see [validation](docs/VALIDATION.md), [architecture](docs/ARCHITECTURE.md) and [realization plan](docs/PLAN_REALISATION.md).
 
-## HDFS et Spark
+HDFS/Spark processing is implemented and exercised, but the supplied corpus is small. The API materializes a graph snapshot in memory, retrieval matches entity names/aliases and traverses up to three hops, and the current benchmark measures retrieved facts rather than generated-answer correctness. This is a reproducible project demonstrator, not evidence of production-scale performance or financial-grade company intelligence.
 
-Le profil `bigdata` ajoute un NameNode, un DataNode et un traitement Spark en mode
-`local[2]`. Il permet de valider les contrats de données ; il ne constitue pas un
-cluster de calcul distribué multi-machines.
-
-```powershell
-docker compose --profile bigdata up -d namenode datanode
-# Attendre qu'un DataNode soit enregistré sur http://localhost:9870.
-docker compose run --rm api upload-hdfs
-docker compose --profile bigdata run --rm spark
-# Récupérer les sorties Spark dans le volume monté :
-docker compose --profile bigdata run --rm --entrypoint /bin/bash spark -lc 'mkdir -p /app/data/curated && /opt/spark/bin/spark-class org.apache.hadoop.fs.FsShell -get -f hdfs://namenode:9000/orgkg/curated/nodes /app/data/curated/ && /opt/spark/bin/spark-class org.apache.hadoop.fs.FsShell -get -f hdfs://namenode:9000/orgkg/curated/facts /app/data/curated/ && /opt/spark/bin/spark-class org.apache.hadoop.fs.FsShell -get -f hdfs://namenode:9000/orgkg/curated/documents /app/data/curated/'
-docker compose run --rm api import-spark
-docker compose run --rm api load-neo4j
-```
-
-Le téléversement WebHDFS s'exécute **dans le conteneur API** pour résoudre le nom du
-DataNode lors de la redirection. Spark écrit les tables Parquet, les relations
-rejetées et les exports JSON réutilisés pour charger Neo4j. Le worker Spark utilise
-les mêmes validations de documents, passages, entités, types et preuves que Python.
-Un enregistrement invalide bloque la publication ; les erreurs sont écrites sous
-`curated_validation/<identifiant>/rejected`. Les relations sont jointes aux entités
-du même passage ; les références sont aussi vérifiées avant l'import du graphe.
-
-Les sorties sont préparées dans un dossier temporaire, puis publiées par renommage.
-Le dossier précédent reste conservé sous `curated_previous_<identifiant>` et est
-restauré si la publication échoue. Importer les exports seulement après le succès
-du job, sans import concurrent pendant les renommages. Les sauvegardes et les
-répertoires de préparation abandonnés nécessitent un nettoyage manuel ultérieur.
-Le code partagé `orgkg` est monté dans le conteneur Spark via `PYTHONPATH=/app` ;
-un futur cluster multi-machines devra distribuer ce package à ses workers.
-HDFS est configuré pour une démonstration locale,
-sans authentification Hadoop.
-
-## État et prochaines validations
-
-Voir `docs/PLAN_REALISATION.md` pour les phases et `docs/VALIDATION.md` pour les
-vérifications réellement effectuées. L'intégration Docker/HDFS/Spark/Neo4j et les
-appels à un vrai LLM nécessitent une exécution dans l'environnement configuré.
-
-La contribution scientifique à terminer sur un corpus réel : annotation indépendante,
-mesures d'extraction/résolution, questions Cypher et GraphRAG comparables, évaluation
-humaine des réponses, latences et coûts. Le degré et les composantes connexes sont
-calculés localement ; le plugin Neo4j GDS n'est pas installé.
-
-## Références techniques
-
-- Neo4j : https://neo4j.com/docs/python-manual/current/query-simple/
-- Images Apache Spark : https://hub.docker.com/r/apache/spark/tags
-- Images Apache Hadoop : https://hub.docker.com/r/apache/hadoop/tags
+Set `API_TOKEN` if access protection is needed. The dashboard Connection button accepts it in memory; it is not saved in browser storage. This single-user service has no multi-user roles or production deployment configuration. `.env`, local runtime/model weights, generated data and reports are excluded from Git.

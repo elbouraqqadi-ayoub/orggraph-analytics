@@ -28,12 +28,28 @@ def entity_id(name: str, kind: str) -> str:
 
 def read_document(path: Path) -> str:
     suffix = path.suffix.lower()
+    if suffix == ".docx":
+        from zipfile import ZipFile, BadZipFile
+        from xml.etree import ElementTree
+        try:
+            with ZipFile(path) as archive:
+                info = archive.getinfo("word/document.xml")
+                if info.file_size > 10 * 1024 * 1024:
+                    raise ValueError("Word document exceeds the decompressed size limit.")
+                root = ElementTree.fromstring(archive.read(info))
+        except (BadZipFile, KeyError, ElementTree.ParseError, RuntimeError) as error:
+            raise ValueError("Invalid or unreadable Word document.") from error
+        return " ".join(e.text for e in root.iter() if e.tag.endswith("}t") and e.text)
     if suffix == ".pdf":
         try:
             from pypdf import PdfReader
+            from pypdf.errors import PyPdfError
         except ImportError as exc:
             raise ValueError("Lecture PDF : installer l'option pip install '.[pdf]'.") from exc
-        return "\n".join(p.extract_text() or "" for p in PdfReader(path).pages)
+        try:
+            return "\n".join(p.extract_text() or "" for p in PdfReader(path).pages)
+        except PyPdfError as error:
+            raise ValueError("Invalid, encrypted or unreadable PDF document.") from error
     text = path.read_text(encoding="utf-8")
     if suffix in {".html", ".htm"}:
         text = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", text, flags=re.S | re.I)
@@ -71,6 +87,28 @@ def fixture_extract(text: str) -> dict:
         relations.append({"source": source, "target": target, "type": kind,
                           "evidence": match.group(), "confidence": 1.0})
     return {"entities": list(entities.values()), "relations": relations}
+
+
+def rules_extract(text: str) -> dict:
+    """Explicit bilingual baseline. Matches stated patterns; does not infer facts."""
+    result = fixture_extract(text)
+    entities = {e["name"]: e for e in result["entities"]}
+    names = r"[A-ZÀ-ÖØ-Þ][\w&'-]*(?: +[A-ZÀ-ÖØ-Þ][\w&'-]*)*"
+    verbs = [(r"acquired|has acquired|has completed its acquisition of|(?i:closes landmark acquisition of|closes acquisition of)|a acquis", "ACQUIRED"),
+             (r"is a subsidiary of|est une filiale de", "SUBSIDIARY_OF"),
+             (r"partners with|has partnered with|est partenaire de", "PARTNERS_WITH"),
+             (r"is based in|is headquartered in|est basée? à", "LOCATED_IN"),
+             (r"operates in|opère dans", "OPERATES_IN")]
+    for verb, kind in verbs:
+        for match in re.finditer(rf"(?P<source>{names})\s+(?:{verb})\s+(?P<target>{names})", text):
+            source, target = match.group("source"), match.group("target")
+            target_kind = {"LOCATED_IN": "Location", "OPERATES_IN": "Sector"}.get(kind, "Organization")
+            entities[source] = {"name": source, "kind": "Organization"}
+            entities[target] = {"name": target, "kind": target_kind}
+            result["relations"].append({"source": source, "target": target, "type": kind,
+                                        "evidence": match.group(), "confidence": 0.8})
+    result["entities"] = list(entities.values())
+    return result
 
 
 def validate_extraction(result: dict, text: str) -> dict:
@@ -162,7 +200,31 @@ def analytics(graph: dict) -> dict:
                      key=lambda n: (-n["degree"], n["name"]))
     return {"nodes": len(graph["nodes"]), "facts": len(graph["facts"]),
             "documents": len(graph["documents"]), "degree_ranking": ranking,
-            "connected_components": components}
+            "connected_components": components, "pagerank": pagerank(graph)}
+
+
+def pagerank(graph: dict, damping: float = 0.85, iterations: int = 100) -> list[dict]:
+    """Directed PageRank with dangling mass redistribution, over explicit facts."""
+    nodes = {n["id"]: n for n in graph["nodes"]}
+    if not nodes:
+        return []
+    outgoing = {identifier: [] for identifier in nodes}
+    for fact in graph["facts"]:
+        outgoing[fact["source"]].append(fact["target"])
+    n = len(nodes)
+    rank = {identifier: 1 / n for identifier in nodes}
+    for _ in range(iterations):
+        dangling = sum(rank[i] for i in nodes if not outgoing[i])
+        updated = {i: (1-damping)/n + damping*dangling/n for i in nodes}
+        for identifier, targets in outgoing.items():
+            for target in targets:
+                updated[target] += damping * rank[identifier] / len(targets)
+        difference = sum(abs(updated[i]-rank[i]) for i in nodes)
+        rank = updated
+        if difference < 1e-10:
+            break
+    return sorted(({"id": i, "name": nodes[i]["name"], "score": score} for i, score in rank.items()),
+                  key=lambda item: (-item["score"], item["name"]))
 
 
 def retrieve(graph: dict, question: str, hops: int = 2, limit: int = 40) -> dict:

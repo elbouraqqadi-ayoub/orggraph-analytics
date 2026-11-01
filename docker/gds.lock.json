@@ -1,0 +1,6 @@
+{
+  "neo4j": "5.26.32",
+  "version": "2.13.14",
+  "url": "https://graphdatascience.ninja/neo4j-graph-data-science-2.13.14.jar",
+  "sha256": "24eef4e1ca6626770b1b0de465c9099db207b639f917146770fbed0e686661e9"
+}

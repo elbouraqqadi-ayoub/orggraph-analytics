@@ -17,3 +17,6 @@ orgkg = "orgkg.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["orgkg*"]
+
+[tool.setuptools.package-data]
+orgkg = ["web/*.html", "web/*.css", "web/*.js"]

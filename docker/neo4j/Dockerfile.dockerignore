@@ -1,0 +1,7 @@
+**
+!docker/
+!docker/neo4j/
+!docker/neo4j/Dockerfile
+!.runtime/
+!.runtime/neo4j/
+!.runtime/neo4j/neo4j-graph-data-science-2.13.14.jar

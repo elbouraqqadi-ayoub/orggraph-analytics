@@ -76,9 +76,10 @@ class PlatformTest(unittest.TestCase):
             result = run_pipeline(Path("data/samples"), self.data, "llm", Path("config/aliases.json"))
         self.assertEqual(provider.call_count, 4)
         self.assertEqual(result["facts"], 9)
-        with patch("orgkg.pipeline.llm", return_value=("Réponse sourcée", {"model": "mock"})) as provider:
+        cited_answer = "Réponse sourcée [" + self.graph["facts"][0]["id"] + "]"
+        with patch("orgkg.pipeline.llm", return_value=(cited_answer, {"model": "mock"})) as provider:
             response = answer(self.graph, "Atlas Industries", "llm")
-        self.assertEqual(response["answer"], "Réponse sourcée")
+        self.assertEqual(response["answer"], cited_answer)
         self.assertIn("fact_id", provider.call_args.args[0][1]["content"])
 
     def test_api_auth_and_validation(self):

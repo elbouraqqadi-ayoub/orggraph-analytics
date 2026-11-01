@@ -1,0 +1,23 @@
+name: Docker acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install '.[pdf]'
+      - name: Configure ephemeral local credentials
+        run: python -c "from pathlib import Path; import secrets; Path('.env').write_text(Path('.env.example').read_text().replace('change-this-local-password',secrets.token_urlsafe(24)))"
+      - run: python scripts/verify_pipeline.py --api-port 8081
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-reports
+          path: output/*.json

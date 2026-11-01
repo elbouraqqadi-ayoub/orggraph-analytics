@@ -6,3 +6,4 @@ data
 output
 *.pdf
 *.jpg
+.runtime

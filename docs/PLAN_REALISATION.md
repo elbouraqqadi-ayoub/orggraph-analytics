@@ -1,3 +1,14 @@
+# Current delivery status — 1 November 2026
+
+The executable project now covers collection, text preparation, validated extraction, explicit alias resolution, local graph publication, HDFS storage, Spark transformation, immutable Neo4j snapshots, Cypher comparisons, GDS PageRank and connected components, graph retrieval, optional local inference, HTTP API and a browser visualization interface.
+
+The interface provides graph exploration and filtering, relationship evidence, entity inspection, original source downloads, document upload, analytics, benchmark reports and questions. The original native interface is retained as an alternative.
+
+Acceptance uses `scripts/verify_pipeline.py` on real Docker services. It validates both successful publication and rejected input with preservation of the previous curated export. `scripts/verify_services.py` checks the main workspace snapshot against the API. `scripts/check_local.py` records regression results. `scripts/verify_llm.py` independently records actual local-model quality; a failed model test is not treated as successful inference.
+
+Project delivery is a functional, reproducible demonstrator. A representative annotated enterprise corpus, temporal ownership model, production security, multi-user ingestion and large-volume performance study remain separate extensions. The two real source excerpts are historical acquisition statements, and do not establish current ownership.
+
+The original phase-by-phase plan follows below.
 # Plan de réalisation — Entreprises et organisations
 
 Objectif : comparer Graph Analytics et GraphRAG sur un même graphe construit depuis

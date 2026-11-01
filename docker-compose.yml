@@ -1,10 +1,14 @@
 name: organization-kg
 services:
   neo4j:
-    image: neo4j:5.26-community
+    build:
+      context: .
+      dockerfile: docker/neo4j/Dockerfile
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Copier .env.example vers .env et définir NEO4J_PASSWORD}
       LOCAL_KG_PASSWORD: ${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '[]'
+      NEO4J_dbms_security_procedures_unrestricted: gds.*
       NEO4J_server_memory_heap_initial__size: 256m
       NEO4J_server_memory_heap_max__size: 512m
       NEO4J_server_memory_pagecache_size: 256m
@@ -16,7 +20,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$$LOCAL_KG_PASSWORD\" 'RETURN 1' > /dev/null 2>&1"]
       interval: 15s
-      timeout: 5s
+      timeout: 20s
+      start_period: 60s
       retries: 20
   api:
     build: .
@@ -25,12 +30,14 @@ services:
       API_BIND: 0.0.0.0
       NEO4J_HTTP_URL: http://neo4j:7474
       HDFS_URL: http://namenode:9870
+      LLM_BASE_URL: ${DOCKER_LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:1.5b}
     command: ["--backend", "neo4j", "serve"]
     volumes:
       - ./data:/app/data
       - ./output:/app/output
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:
       neo4j:
         condition: service_healthy
@@ -77,7 +84,19 @@ services:
       - ./config:/app/config:ro
       - ./data:/app/data
     depends_on: [namenode, datanode]
+  ollama:
+    image: ollama/ollama:0.40.13
+    profiles: ["ai"]
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_KEEP_ALIVE: 5m
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
 volumes:
   neo4j_data:
   namenode_data:
   datanode_data:
+  ollama_data:

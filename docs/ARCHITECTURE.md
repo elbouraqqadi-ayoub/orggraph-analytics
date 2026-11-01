@@ -75,3 +75,13 @@ Pour de grands volumes, remplacer cette lecture complète par une récupération
 Cypher ciblée et mesurer ses effets sur la latence et la qualité. Spark utilise
 deux threads locaux dans le profil fourni ; déployer de vrais workers avant de
 revendiquer un traitement distribué multi-machines.
+
+## Interface web et inférence locale
+
+Le serveur Python sert les ressources HTML/CSS/JavaScript intégrées au paquet, sans CDN ni compilation Node. Le navigateur accède aux routes authentifiées de l'API pour le graphe, les analyses, les documents, les questions et les évaluations. Les téléchargements vérifient le hash de la copie originale et restent confinés au dossier de données. Les imports sont limités en taille et passent par le même contrat de validation que la ligne de commande.
+
+Les opérations POST refusent une origine différente. Une politique CSP interdit les scripts intégrés et les ressources distantes. Le jeton optionnel est conservé en mémoire dans l'onglet. Ces protections conviennent à une utilisation locale mono-utilisateur et ne constituent pas une gestion de rôles pour un déploiement public.
+
+Ollama fournit un endpoint compatible chat completions sur localhost. Les contextes transmis au modèle sont bornés, les citations identifient les faits et une réponse sans identifiants valides est remplacée explicitement par les faits retrouvés. L'extraction vérifie les types, les références et les citations textuelles, avec une tentative de correction. Les échecs de qualité restent visibles dans le rapport d'évaluation.
+
+GDS utilise une projection temporaire des extrémités des faits du snapshot actif, puis la supprime après PageRank et composantes faibles. Les entités isolées sont donc absentes de cette projection GDS, mais présentes dans les analyses locales. Le PageRank GDS brut et le PageRank local normalisé ne doivent pas être comparés sans tenir compte de cette différence.

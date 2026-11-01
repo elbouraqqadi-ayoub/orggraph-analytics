@@ -1,0 +1,7 @@
+[
+  {"id":"REAL-1","question":"Which acquisition involves Microsoft?","hops":1,"expected_facts":[["Microsoft","ACQUIRED","GitHub","Organization"]]},
+  {"id":"REAL-2","question":"Which acquisition involves IBM?","hops":1,"expected_facts":[["IBM","ACQUIRED","Red Hat","Organization"]]},
+  {"id":"REAL-3","question":"What acquisition is documented for GitHub?","hops":1,"expected_facts":[["Microsoft","ACQUIRED","GitHub","Organization"]]},
+  {"id":"REAL-4","question":"What acquisition is documented for Red Hat?","hops":1,"expected_facts":[["IBM","ACQUIRED","Red Hat","Organization"]]},
+  {"id":"REAL-5","question":"What connections concern Unknown Example Corp?","hops":1,"expected_facts":[]}
+]

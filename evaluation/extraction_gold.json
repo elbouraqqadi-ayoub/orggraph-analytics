@@ -1,0 +1,4 @@
+[
+  {"file":"microsoft_github.txt","entities":[["Microsoft","Organization"],["GitHub","Organization"]],"relations":[["Microsoft","ACQUIRED","GitHub"]]},
+  {"file":"ibm_redhat.txt","entities":[["IBM","Organization"],["Red Hat","Organization"]],"relations":[["IBM","ACQUIRED","Red Hat"]]}
+]
